@@ -5,6 +5,13 @@
 ![Platform](https://img.shields.io/badge/target-STM32%20%7C%20FreeRTOS-03234B)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
+<p align="center">
+  <img src="docs/images/host_demo_terminal.gif" width="720" alt="Host demo: BME280 driver 0.1.0-dev, host simulation. T = 25.08 degC, P = 1006.53 hPa, H = 54.997 %RH. FreeRTOS simulation: PASS: 3 samples received and checked.">
+</p>
+
+Captured from `bme280_host_demo` and `test_bme280_task_sim` on a host build.
+Still frame: [PNG](docs/images/host_demo_terminal.png). Vector: [SVG](docs/images/host_demo_terminal.svg).
+
 A portable, hardware independent C99 driver for the **Bosch BME280** temperature, pressure
 and humidity sensor, with a **FreeRTOS** sampling task and an **STM32 Cube HAL** port.
 The whole driver is unit tested on a PC against a fake I2C bus, so it can be developed
@@ -26,6 +33,11 @@ and verified without a board.
   cppcheck.
 
 ## Architecture
+
+The FreeRTOS task calls the portable core. The core reaches the chip only through
+`bme280_hal_t` (`i2c_read`, `i2c_write`, `delay_ms`). The STM32 HAL port and the
+host mock are two bindings of that interface, and each sample is published on a
+queue for the consumer task.
 
 ```mermaid
 flowchart TB
@@ -51,7 +63,7 @@ flowchart TB
     Q -->|xQueueReceive| A
     D --> H
     H -.->|target| S
-    H -.->|unit tests| F
+    H -.->|host mock| F
     S --> HW
 ```
 
@@ -76,6 +88,7 @@ flowchart TB
 │   └── test_*.c             Unity unit tests
 ├── cmake/                   Compiler warning helpers
 ├── docs/GUIDE_FR.md         Step by step implementation guide (French)
+├── docs/images/             Host demo and FreeRTOS simulation capture
 ├── .github/workflows/ci.yml GitHub Actions pipeline
 └── CMakePresets.json        dev / asan / freertos-sim presets
 ```
@@ -150,6 +163,16 @@ if (bme280_init(&dev, &hal, BME280_I2C_ADDR_PRIMARY) == BME280_OK) {
 Porting to another MCU only requires three callbacks matching `bme280_hal.h`.
 
 ## Hardware
+
+<!-- HARDWARE PHOTO PLACEHOLDER
+     Add a photo of the real NUCLEO-L476RG wired to the BME280 breakout.
+     Suggested path: docs/images/nucleo_bme280.jpg
+     Do not commit a stock photo, a render, or a generated image.
+     Once the file exists, replace this comment with:
+     ![NUCLEO-L476RG with BME280 on I2C1 (PB8 SCL, PB9 SDA)](docs/images/nucleo_bme280.jpg)
+-->
+
+*Board photo: not included yet. The HTML comment above this line is the spot for a picture of the NUCLEO-L476RG and the BME280 breakout.*
 
 Tested target: **NUCLEO-L476RG** (STM32L476RG). Any STM32F4 Nucleo works the same way,
 just define `BME280_STM32_HAL_HEADER="stm32f4xx_hal.h"`.
