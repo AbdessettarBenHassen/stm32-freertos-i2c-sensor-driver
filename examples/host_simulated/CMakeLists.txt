@@ -1,0 +1,3 @@
+add_executable(bme280_host_demo main.c)
+target_link_libraries(bme280_host_demo PRIVATE bme280 bme280_fake_i2c)
+bme280_set_warnings(bme280_host_demo)

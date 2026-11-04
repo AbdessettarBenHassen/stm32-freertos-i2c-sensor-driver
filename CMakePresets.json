@@ -1,0 +1,38 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "name": "dev",
+      "displayName": "Host dev build (warnings as errors)",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "BME280_WERROR": "ON"
+      }
+    },
+    {
+      "name": "asan",
+      "displayName": "Host build with ASan + UBSan",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build-asan",
+      "cacheVariables": { "BME280_SANITIZE": "ON" }
+    },
+    {
+      "name": "freertos-sim",
+      "displayName": "Host build + FreeRTOS POSIX simulation",
+      "inherits": "dev",
+      "binaryDir": "${sourceDir}/build-sim",
+      "cacheVariables": { "BME280_FREERTOS_SIM": "ON" }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "asan", "configurePreset": "asan" },
+    { "name": "freertos-sim", "configurePreset": "freertos-sim" }
+  ],
+  "testPresets": [
+    { "name": "dev", "configurePreset": "dev", "output": { "outputOnFailure": true } },
+    { "name": "asan", "configurePreset": "asan", "output": { "outputOnFailure": true } },
+    { "name": "freertos-sim", "configurePreset": "freertos-sim", "output": { "outputOnFailure": true } }
+  ]
+}
