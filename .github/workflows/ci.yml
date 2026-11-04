@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    name: Build & unit tests (${{ matrix.compiler }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    env:
+      CC: ${{ matrix.compiler }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure (warnings as errors, ASan + UBSan)
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBME280_WERROR=ON
+          -DBME280_SANITIZE=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Unit tests
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Host demo
+        run: ./build/examples/host_simulated/bme280_host_demo
+
+  freertos-sim:
+    name: FreeRTOS task on the POSIX simulator
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBME280_WERROR=ON
+          -DBME280_FREERTOS_SIM=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Run simulation
+        run: ctest --test-dir build -L freertos --output-on-failure
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format 18.1.8
+        run: pip install clang-format==18.1.8
+
+      - name: Check formatting
+        run: git ls-files '*.c' '*.h' | xargs clang-format --dry-run --Werror
+
+  cppcheck:
+    name: cppcheck
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cppcheck
+        run: pip install cppcheck==1.5.3
+
+      - name: Static analysis
+        run: >
+          cppcheck --enable=warning,performance,portability --std=c99
+          --error-exitcode=1 --inline-suppr --suppress=missingIncludeSystem
+          -I include -I tests/support -I tests/support/stm32_hal_stub -I port/stm32
+          '-DBME280_STM32_HAL_HEADER="stm32_hal_stub.h"'
+          src tests/*.c tests/support port/stm32 examples/host_simulated
