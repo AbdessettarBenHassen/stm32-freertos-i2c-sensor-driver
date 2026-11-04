@@ -2,9 +2,8 @@
  * @file bme280.c
  * @brief BME280 driver core.
  *
- * The glue logic (argument checks, init sequence, configuration, raw data
- * unpacking) is implemented. The functions marked `TODO(Abdessettar)` are
- * intentionally left as stubs: see docs/GUIDE_FR.md for the step-by-step plan.
+ * Register access, init sequence, configuration, calibration parsing and the
+ * integer compensation formulas of the datasheet (section 4.2.3).
  *
  * @copyright Copyright (c) 2026 Abdessettar Ben Hassen. MIT License.
  */
@@ -37,39 +36,44 @@ static uint32_t osr_to_samples(bme280_osr_t osr)
     return (osr == BME280_OSR_SKIP) ? 0U : ((uint32_t)1U << ((uint32_t)osr - 1U));
 }
 
+/** Little endian 16-bit word (LSB first, as in the calibration block). */
+static uint16_t le_u16(const uint8_t *p)
+{
+    return (uint16_t)((uint16_t)p[0] | (uint16_t)((uint16_t)p[1] << 8));
+}
+
+static int16_t le_s16(const uint8_t *p)
+{
+    return (int16_t)le_u16(p);
+}
+
 /* ------------------------------------------------------------------------- */
 /* Low level register access                                                 */
 /* ------------------------------------------------------------------------- */
 
 bme280_status_t bme280_read_regs(const bme280_dev_t *dev, uint8_t reg, uint8_t *buf, size_t len)
 {
-    /*
-     * TODO(Abdessettar): implement the burst register read.
-     *  1. Return BME280_E_NULL_PTR if dev, buf, dev->hal or dev->hal->i2c_read is NULL.
-     *  2. Return BME280_E_INVALID_ARG if len == 0.
-     *  3. Call dev->hal->i2c_read(dev->hal->ctx, dev->addr, reg, buf, len).
-     *  4. Map a non-zero HAL return value to BME280_E_COMM, otherwise BME280_OK.
-     * Tests: tests/test_bme280_regs.c
-     */
-    (void)dev;
-    (void)reg;
-    (void)buf;
-    (void)len;
-    return BME280_E_NOT_IMPLEMENTED;
+    if ((dev == NULL) || (buf == NULL) || (dev->hal == NULL) || (dev->hal->i2c_read == NULL)) {
+        return BME280_E_NULL_PTR;
+    }
+    if (len == 0U) {
+        return BME280_E_INVALID_ARG;
+    }
+    if (dev->hal->i2c_read(dev->hal->ctx, dev->addr, reg, buf, len) != 0) {
+        return BME280_E_COMM;
+    }
+    return BME280_OK;
 }
 
 bme280_status_t bme280_write_reg(const bme280_dev_t *dev, uint8_t reg, uint8_t value)
 {
-    /*
-     * TODO(Abdessettar): implement the single register write.
-     *  Same NULL checks as bme280_read_regs() (with i2c_write), then call
-     *  dev->hal->i2c_write(...) with a 1-byte buffer and map errors to BME280_E_COMM.
-     * Tests: tests/test_bme280_regs.c
-     */
-    (void)dev;
-    (void)reg;
-    (void)value;
-    return BME280_E_NOT_IMPLEMENTED;
+    if ((dev == NULL) || (dev->hal == NULL) || (dev->hal->i2c_write == NULL)) {
+        return BME280_E_NULL_PTR;
+    }
+    if (dev->hal->i2c_write(dev->hal->ctx, dev->addr, reg, &value, 1U) != 0) {
+        return BME280_E_COMM;
+    }
+    return BME280_OK;
 }
 
 /* ------------------------------------------------------------------------- */
@@ -96,22 +100,34 @@ bme280_status_t bme280_soft_reset(const bme280_dev_t *dev)
 bme280_status_t bme280_parse_calibration(const uint8_t tp[BME280_CALIB_TP_LEN],
                                          const uint8_t h[BME280_CALIB_H_LEN], bme280_calib_t *out)
 {
-    /*
-     * TODO(Abdessettar): decode the calibration bytes (datasheet table 16).
-     *  - Return BME280_E_NULL_PTR if any pointer is NULL.
-     *  - tp[] holds registers 0x88..0xA1: index = register - 0x88.
-     *    T1..P9 are little endian 16-bit words (LSB first). Mind the
-     *    signedness: T1 and P1 are unsigned, the others are signed.
-     *  - dig_H1 is at 0xA1, i.e. tp[25].
-     *  - h[] holds registers 0xE1..0xE7: index = register - 0xE1.
-     *    dig_H4 and dig_H5 are 12-bit values sharing register 0xE5 (nibbles!).
-     *  - Return BME280_OK.
-     * Tests: tests/test_bme280_calib.c
-     */
-    (void)tp;
-    (void)h;
-    (void)out;
-    return BME280_E_NOT_IMPLEMENTED;
+    if ((tp == NULL) || (h == NULL) || (out == NULL)) {
+        return BME280_E_NULL_PTR;
+    }
+
+    /* tp[] = registers 0x88..0xA1 (index = register - 0x88) */
+    out->dig_T1 = le_u16(&tp[0]);
+    out->dig_T2 = le_s16(&tp[2]);
+    out->dig_T3 = le_s16(&tp[4]);
+    out->dig_P1 = le_u16(&tp[6]);
+    out->dig_P2 = le_s16(&tp[8]);
+    out->dig_P3 = le_s16(&tp[10]);
+    out->dig_P4 = le_s16(&tp[12]);
+    out->dig_P5 = le_s16(&tp[14]);
+    out->dig_P6 = le_s16(&tp[16]);
+    out->dig_P7 = le_s16(&tp[18]);
+    out->dig_P8 = le_s16(&tp[20]);
+    out->dig_P9 = le_s16(&tp[22]);
+    out->dig_H1 = tp[25];
+
+    /* h[] = registers 0xE1..0xE7 (index = register - 0xE1) */
+    out->dig_H2 = le_s16(&h[0]);
+    out->dig_H3 = h[2];
+    /* H4 = 0xE4[7:0] (signed MSB) : 0xE5[3:0], H5 = 0xE6[7:0] (signed MSB) : 0xE5[7:4].
+     * Multiply instead of shifting so a negative MSB is not left shifted. */
+    out->dig_H4 = (int16_t)(((int32_t)(int8_t)h[3] * 16) + (int32_t)(h[4] & 0x0FU));
+    out->dig_H5 = (int16_t)(((int32_t)(int8_t)h[5] * 16) + (int32_t)(h[4] >> 4));
+    out->dig_H6 = (int8_t)h[6];
+    return BME280_OK;
 }
 
 bme280_status_t bme280_read_calibration(bme280_dev_t *dev)
@@ -295,52 +311,80 @@ bme280_status_t bme280_read_data(bme280_dev_t *dev, bme280_data_t *data)
 
 int32_t bme280_compensate_temperature(const bme280_calib_t *calib, int32_t adc_T, int32_t *t_fine)
 {
-    /*
-     * TODO(Abdessettar): implement the 32-bit integer temperature formula
-     * (datasheet section 4.2.3, function BME280_compensate_T_int32).
-     *  - Compute var1, var2 from adc_T and dig_T1..dig_T3.
-     *  - t_fine = var1 + var2; store it in *t_fine when t_fine != NULL.
-     *  - Return (t_fine * 5 + 128) >> 8   (unit: 0.01 degC).
-     *  - Return 0 (and leave *t_fine untouched) if calib is NULL.
-     * Tests: tests/test_bme280_compensation.c
-     */
-    (void)calib;
-    (void)adc_T;
-    (void)t_fine;
-    return 0;
+    int32_t var1;
+    int32_t var2;
+    int32_t fine;
+
+    if (calib == NULL) {
+        return 0;
+    }
+    var1 = (((adc_T >> 3) - ((int32_t)calib->dig_T1 * 2)) * (int32_t)calib->dig_T2) >> 11;
+    var2 = (((((adc_T >> 4) - (int32_t)calib->dig_T1) * ((adc_T >> 4) - (int32_t)calib->dig_T1)) >>
+             12) *
+            (int32_t)calib->dig_T3) >>
+           14;
+    fine = var1 + var2;
+    if (t_fine != NULL) {
+        *t_fine = fine;
+    }
+    return ((fine * 5) + 128) >> 8;
 }
 
 uint32_t bme280_compensate_pressure(const bme280_calib_t *calib, int32_t adc_P, int32_t t_fine)
 {
-    /*
-     * TODO(Abdessettar): implement the 64-bit integer pressure formula
-     * (datasheet section 4.2.3, function BME280_compensate_P_int64).
-     *  - Use int64_t for every intermediate value.
-     *  - If the divisor (var1) is 0, return 0 to avoid a division by zero.
-     *  - Return 0 if calib is NULL.
-     *  - Result is Pa in Q24.8 format.
-     * Tests: tests/test_bme280_compensation.c
-     */
-    (void)calib;
-    (void)adc_P;
-    (void)t_fine;
-    return 0U;
+    int64_t var1;
+    int64_t var2;
+    int64_t p;
+
+    if (calib == NULL) {
+        return 0U;
+    }
+    /* Datasheet left shifts of possibly negative values are written as
+     * multiplications by the same power of two (shifting a negative is UB). */
+    var1 = (int64_t)t_fine - 128000;
+    var2 = var1 * var1 * (int64_t)calib->dig_P6;
+    var2 = var2 + ((var1 * (int64_t)calib->dig_P5) * 131072);      /* << 17 */
+    var2 = var2 + ((int64_t)calib->dig_P4 * INT64_C(34359738368)); /* << 35 */
+    var1 = ((var1 * var1 * (int64_t)calib->dig_P3) >> 8) +
+           ((var1 * (int64_t)calib->dig_P2) * 4096);                           /* << 12 */
+    var1 = ((INT64_C(140737488355328) + var1) * (int64_t)calib->dig_P1) >> 33; /* 1 << 47 */
+    if (var1 == 0) {
+        return 0U;
+    }
+    p = 1048576 - (int64_t)adc_P;
+    p = (((p * INT64_C(2147483648)) - var2) * 3125) / var1; /* << 31 */
+    var1 = ((int64_t)calib->dig_P9 * (p >> 13) * (p >> 13)) >> 25;
+    var2 = ((int64_t)calib->dig_P8 * p) >> 19;
+    p = ((p + var1 + var2) >> 8) + ((int64_t)calib->dig_P7 * 16); /* << 4 */
+    return (uint32_t)p;
 }
 
 uint32_t bme280_compensate_humidity(const bme280_calib_t *calib, int32_t adc_H, int32_t t_fine)
 {
-    /*
-     * TODO(Abdessettar): implement the 32-bit integer humidity formula
-     * (datasheet section 4.2.3, function bme280_compensate_H_int32).
-     *  - Clamp the intermediate value to [0, 419430400] before the final >> 12.
-     *  - Return 0 if calib is NULL.
-     *  - Result is %RH in Q22.10 format (102400 = 100 %RH).
-     * Tests: tests/test_bme280_compensation.c
-     */
-    (void)calib;
-    (void)adc_H;
-    (void)t_fine;
-    return 0U;
+    int32_t v;
+
+    if (calib == NULL) {
+        return 0U;
+    }
+    v = t_fine - 76800;
+    v = (((((adc_H * 16384) - ((int32_t)calib->dig_H4 * 1048576) - ((int32_t)calib->dig_H5 * v)) +
+           16384) >>
+          15) *
+         (((((((v * (int32_t)calib->dig_H6) >> 10) *
+              (((v * (int32_t)calib->dig_H3) >> 11) + 32768)) >>
+             10) +
+            2097152) *
+               (int32_t)calib->dig_H2 +
+           8192) >>
+          14));
+    v = v - (((((v >> 15) * (v >> 15)) >> 7) * (int32_t)calib->dig_H1) >> 4);
+    if (v < 0) {
+        v = 0;
+    }
+    if (v > 419430400) {
+        v = 419430400;
+    }
+    return (uint32_t)(v >> 12);
 }
 
 /* ------------------------------------------------------------------------- */
