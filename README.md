@@ -194,11 +194,11 @@ expected UART output are in [examples/nucleo_l476rg](examples/nucleo_l476rg/READ
 - [x] Project structure, CMake, CI, formatting and static analysis
 - [x] Public API, HAL abstraction, fake I2C bus and unit tests
 - [x] Host demo and FreeRTOS POSIX simulation harness
-- [ ] Register read/write helpers
-- [ ] Calibration parsing (0x88..0xA1, 0xE1..0xE7)
-- [ ] Integer compensation (temperature, pressure, humidity)
-- [ ] STM32 Cube HAL binding
-- [ ] FreeRTOS sampling task
+- [x] Register read/write helpers
+- [x] Calibration parsing (0x88..0xA1, 0xE1..0xE7)
+- [x] Integer compensation (temperature, pressure, humidity)
+- [x] STM32 Cube HAL binding
+- [x] FreeRTOS sampling task
 - [ ] Bring-up on NUCLEO-L476RG, logic analyzer capture in `docs/`
 - [ ] Release v0.1.0
 - [ ] Next: DMA / interrupt driven I2C, low power forced mode, SPI transport
