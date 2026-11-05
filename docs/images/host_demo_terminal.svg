@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="557" height="298" viewBox="0 0 557 298" role="img" aria-label="Host demo and FreeRTOS simulation terminal output">
+<rect width="100%" height="100%" fill="#0a0c10"/>
+<rect x="18" y="18" width="521.0" height="262.0" rx="12" fill="#0d1117" stroke="#30363d"/>
+<rect x="18" y="18" width="521.0" height="38" rx="12" fill="#161b22"/>
+<rect x="18" y="30" width="521.0" height="26" fill="#161b22"/>
+<line x1="18" y1="56" x2="539.0" y2="56" stroke="#30363d"/>
+<circle cx="34" cy="37.0" r="6" fill="#ff5f57"/>
+<circle cx="52" cy="37.0" r="6" fill="#febc2e"/>
+<circle cx="70" cy="37.0" r="6" fill="#28c840"/>
+<text x="278.5" y="41.0" text-anchor="middle" fill="#8b949e" font-family="JetBrains Mono, ui-monospace, monospace" font-size="13">bme280 host demo</text>
+<text x="40" y="87" font-family="JetBrains Mono, ui-monospace, monospace" font-size="15"><tspan fill="#7ee787">$ </tspan><tspan fill="#e6edf3">./build/examples/host_simulated/bme280_host_demo</tspan></text>
+<text x="40" y="111" font-family="JetBrains Mono, ui-monospace, monospace" font-size="15"><tspan fill="#e6edf3">BME280 driver 0.1.0-dev, host simulation</tspan></text>
+<text x="40" y="135" font-family="JetBrains Mono, ui-monospace, monospace" font-size="15"><tspan fill="#8b949e">T = </tspan><tspan fill="#f0a848">25.08 degC</tspan></text>
+<text x="40" y="159" font-family="JetBrains Mono, ui-monospace, monospace" font-size="15"><tspan fill="#8b949e">P = </tspan><tspan fill="#79c0ff">1006.53 hPa</tspan></text>
+<text x="40" y="183" font-family="JetBrains Mono, ui-monospace, monospace" font-size="15"><tspan fill="#8b949e">H = </tspan><tspan fill="#56d4dd">54.997 %RH</tspan></text>
+<text x="40" y="231" font-family="JetBrains Mono, ui-monospace, monospace" font-size="15"><tspan fill="#7ee787">$ </tspan><tspan fill="#e6edf3">./build-sim/tests/freertos_sim/test_bme280_task_sim</tspan></text>
+<text x="40" y="255" font-family="JetBrains Mono, ui-monospace, monospace" font-size="15"><tspan fill="#3fb950">PASS: 3 samples received and checked</tspan></text>
+</svg>
